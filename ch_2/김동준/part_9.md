@@ -134,4 +134,90 @@ public class Chicken {
 }
 ```
 
-결국 **합성은 객체의 '무엇이냐'보다는 '무엇을 할 수 있느냐'에 집중**한다. 즉, 객체의 행동(동작)을 조립하듯 구성함으로써 유연하고 유지보수가 쉬운 구조를 만든다.
+결국 **합성은 객체의 '무엇이냐'보다는 '무엇을 할 수 있느냐'에 집중**한다. 즉, 객체의 행동(동작)을 조립하듯 구성함으로써 유연하고 유지보수가 쉬운 구조를 만든다. 어디서 많이 봤다 싶더만, **전통적인 객체지향 프로그래밍에서 동작의 파라미터화를 통한 함수형 프로그래밍 리팩토링**과 똑같은 형태다. 함수형에서 고차 함수를 활용해 행위를 분리하고 재조립하며, 객체에 포함된 해당 동작의 자세한 내용을 하드코딩하지 않고 외부의 내용에 의존하면서(의존성 주입) 다형성을 유연하게 실현하는 것과 유사하다.
+
+## 2. 상속과 관련된 다양한 시나리오
+
+부모 클래스의 내용을 자식 클래스에서 넘겨받고 오버라이딩하면서 기능을 확장하는 상속의 기본 골자에서 다양한 문법들과 기능들이 결합되면서 생각할 거리들이 던져진다. 나름대로 사고실험을 진행해보면서 상속의 근본적인 단점, 그리고 그 원인들에 대해 고찰해봤다.
+
+### 1) 동작이 발생했을 때, 그 책임을 누구한테 넘길 것인가?
+
+이 질문의 핵심부터 먼저 말하자면, 상속에서는 **부모가 모든 계약의 기준 시작점**이라는 것이다. 자식 클래스들에서 아무리 다양하게 메소드가 구현되어도 그 모태는 결국 부모 클래스의 메소드에 의존하게 된다. 아래 예제를 보자.
+
+```java
+public abstract class Parent {
+
+    public void process() {
+        stepA();
+        stepB();
+        stepC();
+    }
+
+    protected abstract void stepA();
+    protected abstract void stepB();
+    protected abstract void stepC();
+}
+
+public class Child extends Parent {
+    @Override
+    protected void stepA() {
+        System.out.println("스텝 A");
+    }
+
+    @Override
+    protected void stepB() {
+        System.out.println("스텝 B");
+    }
+
+    @Override
+    protected void stepC() {
+        System.out.println("스텝 C");
+    }
+}
+```
+
+다음과 같은 추상 클래스에서 로직의 스텝 단위로 추상 메소드를 정의한 다음, 해당 스텝들을 모아 하나의 프로세스 메소드를 정의하였다. 스텝들은 상속된 자식 클래스에서 다양하게 구현될 수 있을 것이다. 이 코드로만 봤을 때는 문제가 없어보이지만, 만약 **스텝의 순서를 조정하거나 특정 스텝을 수정하고 추가할 경우**에는 자식 클래스에서 취할 수 있는 방법이 없다. 즉, 부모 클래스를 다시 건드리게 되고 이 과정에서 또 다른 자식 클래스들에도 영향이 갈 수도 있다. 비슷한 구조를 합성의 형태로 바꿔보자.
+
+```java
+public interface Step {
+    void run();
+}
+
+public class Processor {
+    public final List<Step> steps;
+
+    public Processor(List<Step> steps) {
+        this.steps = steps;
+    }
+
+    public void process() {
+        for (Step step: steps) step.run();
+    }
+}
+
+class StepA implements Step {
+    @Override
+    public void run() {
+        System.out.println("스텝 A");
+    }
+}
+
+class StepB implements Step {
+    @Override
+    public void run() {
+        System.out.println("스텝 B");
+    }
+}
+
+class StepC implements Step {
+    @Override
+    public void run() {
+        System.out.println("스텝 C");
+    }
+}
+```
+
+상속 형태의 로직과 유사하지만 달라진 점은 `Step` 인터페이스를 통해 각 스텝들을 구현하면서 해당 스텝 단계들을 프로세서(부모)에서 직접 조립하는 것이 아닌 외부에서 받아오고 있다. 즉, 프로세서는 순수하게 스텝들을 모아 실행하는 점에만 치중하고 그 스텝들이 어떤 것인지, 순서는 어떻게 조정되는지에 대한 내용은 외부에서 정해져서 들어오게 된다. 이 내용은 **의존성 주입(Dependency Injection)**의 핵심 원리와도 일맥상통한다. 기존의 스텝들이 모인 프로세스의 구체적인 흐름이 상속 구조에서는 부모 클래스 내부에서 강하게 결합되어있던 반면, 합성 구조에서는 외부로부터 의존성 주입을 받음으로써 프로세스의 구체적인 흐름과 느슨하게 결합된다.
+
+상속은 미리 조립해뒀기 때문에 수정하려면 다시 부숴야 하고, 합성은 조립을 위한 준비만 해두고 조립은 외부에서 하기 때문에 위험성이 적은 구조다. 부모의 책임 여파가 자식에게 전달되며 공동 책임이 되는 상속과 달리 책임의 상세 내용은 외부에서 이뤄지기 때문에 합성은 책임의 여파에서 상대적으로 자유롭다.
+
