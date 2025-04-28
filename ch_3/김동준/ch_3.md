@@ -62,3 +62,37 @@ public int plus(int... nums) {
 ## 리스코프 치환 원칙(LSP: Liskov Substitution Principle)
 *하위 클래스 객체는 프로그램 내의 상위 클래스가 나타나는 모든 상황에서 대체 가능하다.*
 ### 1) 다형성과의 차이점
+교재에서는 하위 구현체에서 예외 발생 로직 추가의 경우로 차이점을 설명하고 있다.
+```java
+public class A {
+  public Object method() {
+    // ...
+    return object;
+  }
+}
+
+public class B extends A {
+  @Override
+  public Object method() {
+    // ...
+    if (case) {
+        return object;
+    }
+    return super.method();
+  }
+}
+
+public class C extends A {
+  @Override
+  public Object method() {
+    // ...
+    if (!case) {
+        throw new RuntimeException();
+    }
+    return object;
+  }
+}
+```
+
+A 클래스를 상속해서 조건 검증 로직을 추가한 B와 C 클래스는 그 기능적으로는 상당히 유사하다. 다만 A 클래스 타입이 쓰여진 상황에서 B 클래스로 치환했을 때는 아무런 논리적 동작의 변화가 없으나, C 클래스로 치환하면 예외가 발생할 수 있다. 즉, 전체 프로그램 논리적 동작이 변경됐다. B와 C 전부 다형성 구문을 통해 코드를 구현했으나, C는 LSP를 따르지 않는다는 차이점이 있다.
+### 2) 계약에 따른 설계
