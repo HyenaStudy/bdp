@@ -87,7 +87,7 @@ public class C extends A {
   public Object method() {
     // ...
     if (!case) {
-        throw new RuntimeException();
+        throw new SomeException();
     }
     return object;
   }
@@ -95,4 +95,34 @@ public class C extends A {
 ```
 
 A 클래스를 상속해서 조건 검증 로직을 추가한 B와 C 클래스는 그 기능적으로는 상당히 유사하다. 다만 A 클래스 타입이 쓰여진 상황에서 B 클래스로 치환했을 때는 아무런 논리적 동작의 변화가 없으나, C 클래스로 치환하면 예외가 발생할 수 있다. 즉, 전체 프로그램 논리적 동작이 변경됐다. B와 C 전부 다형성 구문을 통해 코드를 구현했으나, C는 LSP를 따르지 않는다는 차이점이 있다.
-### 2) 계약에 따른 설계
+
+다만, 상위 클래스는 그냥 동작하는데, 하위 클래스에서 특정 분기별 예외가 발생한다고 LSP가 지켜지지 않는다고 해서 꼭 B 클래스처럼 코드를 짜는 게 좋은 것만은 아니다. LSP를 강하게 준수할 수록 다형성의 의미가 퇴색되는 거지만, SOLID 원칙은 그저 코드를 잘 짜기 위한 **수단**에 불과하고, 다형성 같은 객체지향 특성은 코드 작성의 본질적인 **핵심**이기 때문에 개인적으로는 다형성이 조금 더 우선하면서 과한 다형성을 막기 위한 수단으로 LSP가 존재한다고 생각한다.
+
+```java
+```java
+public class A {
+  // 상위 클래스에서 예외를 대비할 수 있도록 논리적 흐름을 통일
+  // 이른바 어떤 상황에서 어떤 예외가 내뱉어질 수 있다는 '계약'을 걺
+  public Object method() throws SomeException {
+    // ...
+    return object;
+  }
+}
+
+public class C extends A {
+  @Override
+  public Object method() throws SomeException {
+    // ...
+    if (!case) {
+        throw new SomeException();
+    }
+    return object;
+  }
+}
+```
+위와 같은 코드 설계를 **계약에 따른 설계**라고 할 수 있다.
+
+### 2) 생각해보기: LSP의 중요성
+위의 목차에서 답이 미리 나왔는데, 결국 다형성을 우선하지만 과도한 다형성으로 인한 상위 동작의 범위를 벗어나는 걸 막기 위한 수단이 바로 LSP라고 생각한다.
+
+
