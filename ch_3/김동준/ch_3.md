@@ -125,4 +125,55 @@ public class C extends A {
 ### 2) 생각해보기: LSP의 중요성
 위의 목차에서 답이 미리 나왔는데, 결국 다형성을 우선하지만 과도한 다형성으로 인한 상위 동작의 범위를 벗어나는 걸 막기 위한 수단이 바로 LSP라고 생각한다.
 
+## 인터페이스 분리 원칙(ISP: Interface Segregation Principle)
+*클라이언트에서 필요하지 않은 인터페이스를 사용하도록 강요해서는 안 된다.*
+### 1) 인터페이스의 정의
+인터페이스는 특정 API가 될 수도 있고, API들의 집합도 될 수도 있고, 그냥 자바 같은 프로그래밍 언어에서 제공하는 인터페이스가 될 수도 있다. 회원 관리를 주제로 한 인터페이스 내부에 등록, 로그인, 조회 등의 추상 기능들이 정의되어 있을 때, **삭제** 기능이 추가돼야 한다면 단순 회원 관리 인터페이스에 메소드를 추가할 수도 있지만 보안적인 이슈(사용자 삭제의 위험부담 고려)를 고려했을 때, 별개의 인터페이스(엄격한 회원 관리)를 구축하고 그 내부에 삭제 기능을 신규 구현하는 것이 조금 더 안전하다.
 
+이 과정에서 삭제 기능은 별개의 인터페이스를 통해 제공되므로 기존의 사용자 인터페이스를 활용하던 기능에서의 삭제 추가가 아닌, 단순한 인터페이스의 기능 추가라면 해당 클라이언트에게 삭제 메소드의 사용을 강요하지 않을 수 있다. 이 과정이 ISP 준수의 예시라고 할 수 있다. 또한, 이 내용은 포괄적인 기능들이 집중된 인터페이스를 분리하면서 핫 업데이트 등에 대비하는 경우도 포함된다.
+
+### 2) 생각해보기: AtomicInteger 클래스의 getAndIncrement() 메소드가 ISP를 준수하는가?
+
+`getAndIncrement()` 메소드는 원자성을 확보한 값을 조회하고, 해당 값을 1 증가시킨 다음, 저장하게 된다. 즉 **조회, 연산, 저장**이라는 3개의 기능이 하나의 메소드에 묶여있는 셈이다. 표면적으로 봤을 때는 ISP, 더불어 SRP까지 위배되고 있다고 볼 수 있지만 기본 제공되는 패키지의 클래스 및 메소드여서 조금 더 세부적으로 파고들기로 했다.
+
+해당 메소드의 구조는 다음과 같다.
+
+```java
+public class AtomicInteger extends Number implements java.io.Serializable {
+
+    // ...
+    private static final Unsafe U = Unsafe.getUnsafe();
+    private static final long VALUE
+        = U.objectFieldOffset(AtomicInteger.class, "value");
+
+    // ...
+    public final int getAndIncrement() {
+        return U.getAndAddInt(this, VALUE, 1);
+    }
+```
+`AtomicInteger` 클래스의 필드에는 저수준 메모리 조작이 가능한 `Unsafe` 불변 클래스를 지녔다. `getAndIncrement()` 메소드는 `Unsafe` 클래스의 메소드를 통해 기능을 구현한다.
+```java
+public final class Unsafe {
+
+    // ...
+    @IntrinsicCandidate
+    public final int getAndAddInt(Object o, long offset, int delta) {
+        int v;
+        do {
+            v = getIntVolatile(o, offset);
+        } while (!weakCompareAndSetInt(o, offset, v, v + delta));
+        return v;
+    }
+```
+`Unsafe` 내부의 메소드에서는 **다른 스레드가 바꾼 값을 즉시 보는 '가시성'을 보장하도록** JVM이 캐시가 아닌 메인 메모리에서 바로 읽은 값을 반환하되, CAS(Compare And Swap) 알고리즘을 통해 값을 원자적으로 반환하게 된다. 조금 더 구체적인 과정은
+
+>- `v = getIntVolatile(o, offset);` : 메인 메모리에서 바로 값을 읽어옴
+>- `!weakCompareAndSetInt(o, offset, v, v + delta)` : 지금 읽은 `v`가 동일하다면 `v + delta`로 교체 시도, 그 과정에서 다른 스레드가 먼저 값을 바꿨다면 CAS 실패 -> 루프 반복
+
+여기서 `getAndIncrement()` 메소드로 한정한다면 `delta`는 1이 된다. 결국 정리하자면,
+
+1. 클라이언트가 단순히 조회의 목적으로 쓴 거면, 그건 원칙 위반이 아닌 클라이언트의 오용이다.
+2. 클라이언트가 목적에 맞게 썼다면, 결국 증가를 위해서는 읽기가 필요하고(스레드 안전 특성상) 두 기능이 불가분적으로 묶여야 하기 때문에 SRP 위반이 아니다.
+3. 클라이언트가 목적에 맞게 썼다면, 해당 의도가 담겨져 있으며 단순히 조회만을 원했다면 조회 메소드(get()) 또한 이미 존재하기 때문에 필요에 맞게 쓰면 돼서 클라이언트에게 사용을 강제하지 않으므로 ISP 위반도 아니다.
+
+라고 정리할 수 있다.
